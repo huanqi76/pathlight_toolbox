@@ -13,8 +13,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 async def scrape():
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, slow_mo=250)
+        browser = await p.chromium.launch(headless=False, slow_mo=250)
         context = await browser.new_context(storage_state=os.getenv("STORAGE_STATE_PATH"))
 
         page = await context.new_page()
@@ -118,4 +119,4 @@ async def scroll(ctx):
 
     return names
 
-asyncio.run(scrape())
+# asyncio.run(scrape())

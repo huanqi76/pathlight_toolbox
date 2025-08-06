@@ -33,7 +33,7 @@ async def scrape_endpoint():
     try:
         result = await scrape()
         return JSONResponse({
-            "status": "success", 
+            "status": "success",
             "message": "Scraping completed successfully",
             "data_count": len(result[::2]) if result else 0
         })

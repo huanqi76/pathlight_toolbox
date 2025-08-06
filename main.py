@@ -2,8 +2,10 @@ import fastapi
 import uvicorn
 import re
 import os
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi import HTTPException
 from typing import List, Optional
 
@@ -16,11 +18,12 @@ from backend.models import ConnectionService
 from dotenv import load_dotenv
 load_dotenv()
 
-app = fastapi.FastAPI()
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: fastapi.FastAPI):
     await init_db()
+    yield
+
+app = fastapi.FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,6 +31,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 @app.get('/')
 async def root():

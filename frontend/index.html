@@ -44,7 +44,7 @@
         <main class="main-content">
             <div id="linkedin-follower" class="tool-section active">
                 <h1>LinkedIn Company Follows</h1>
-                <p>By default, the program scrapes the set of investors on this Google Sheet. Please edit this list directly before scraping if you would like a different set of investors to be tracked.</p>
+                <p>By default, the program scrapes the set of investors on this Google Sheet. Please edit this list directly if you would like a different set of investors to be tracked.</p>
                 <iframe
                   src="https://docs.google.com/spreadsheets/d/1ZBmqdC2CIQ85zLD0989YJ3hfpUBJ5U7UZwmHCWerMFg/edit?usp=sharing"
                   width="100%"
@@ -55,13 +55,20 @@
                   <div class="confirmation-section" style="margin-top: 20px;">
                     <label style="display: flex; align-items: center; gap: 10px;">
                       <input type="checkbox" id="confirmCheckbox">
-                      Yes, this is the list I want to scrape.
+                      Yes, this is the list I want to track.
                     </label>
                   </div>
 
                   <div class="tool-content" style="margin-top: 20px;">
-                    <button id="scrapeBtn" class="action-button" disabled>Start Scraping</button>
+                    <div class="button-group">
+                      <button id="scrapeBtn" class="action-button" disabled>Start Scraping</button>
+                      <button id="showConnectionsBtn" class="action-button secondary" disabled>Show Current Connections</button>
+                    </div>
                     <div id="status" class="status"></div>
+                    <div id="connectionsResults" class="connections-display" style="display: none;">
+                      <h3>Current Connections</h3>
+                      <div id="connectionsTable"></div>
+                    </div>
                   </div>
             </div>
 

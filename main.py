@@ -1,17 +1,26 @@
 import fastapi
 import uvicorn
+import re
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi import HTTPException
+from typing import List, Optional
 
 from backend import *
 from frontend import *
 from backend.run import scrape
+from backend.database import init_db
+from backend.models import ConnectionService
 
 from dotenv import load_dotenv
 load_dotenv()
 
 app = fastapi.FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,6 +48,54 @@ async def scrape_endpoint():
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scraping failed: {str(e)}")
+
+@app.get('/connections')
+async def get_connections(handle: Optional[str] = None):
+    """Get connections for a specific handle or all connections"""
+    try:
+        if handle:
+            connections = await ConnectionService.get_connections_by_handle(handle)
+        else:
+            # Extract handle from URL if available
+            url = os.getenv("URL")
+            if url:
+                match = re.search(r"/in/([^/]+)/details", url)
+                if match:
+                    current_handle = match.group(1)
+                    connections = await ConnectionService.get_connections_by_handle(current_handle)
+                else:
+                    connections = await ConnectionService.get_all_connections()
+            else:
+                connections = await ConnectionService.get_all_connections()
+        
+        return JSONResponse({
+            "status": "success",
+            "connections": [
+                {
+                    "id": conn.id,
+                    "handle": conn.handle,
+                    "company": conn.company,
+                    "date_scraped": conn.date_scraped.isoformat()
+                }
+                for conn in connections
+            ],
+            "count": len(connections)
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve connections: {str(e)}")
+
+@app.post('/migrate')
+async def migrate_csv_data():
+    """Migrate existing CSV data to PostgreSQL"""
+    try:
+        migrated_count = await ConnectionService.migrate_from_csv()
+        return JSONResponse({
+            "status": "success",
+            "message": f"Migration completed successfully",
+            "migrated_count": migrated_count
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=2000)

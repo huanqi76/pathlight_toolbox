@@ -1,14 +1,12 @@
-import json
 import os
 import re
-import sys
-import textwrap
-import asyncio
-import csv
-from datetime import datetime
-from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from pandas.io.common import get_handle
+from playwright.async_api import async_playwright
 
 from dotenv import load_dotenv
+from backend.models import ConnectionService
 
 load_dotenv()
 
@@ -19,38 +17,41 @@ async def scrape():
         context = await browser.new_context(storage_state=os.getenv("STORAGE_STATE_PATH"))
 
         page = await context.new_page()
-        await page.goto(os.getenv("URL"), wait_until="domcontentloaded", timeout=70000)
 
-        await page.wait_for_selector(
-            "*[id^='profilePagedListComponent']",
-            state="attached",
-            timeout=15_000
-        )
-        print("Rows visible immediately:",
-              await page.locator(os.getenv("ITEM_SELECTOR")).count())
+        urls = await get_urls()
+        for url in urls:
+            await page.goto(url, wait_until="domcontentloaded", timeout=70000)
 
-        candidate = await page.evaluate("""
-        () => {
-        const row = document.querySelector('*[id^="profilePagedListComponent"]');
-        if (!row) return null;
+            await page.wait_for_selector(
+                "*[id^='profilePagedListComponent']",
+                state="attached",
+                timeout=15_000
+            )
+            print("Rows visible immediately:",
+                  await page.locator(os.getenv("ITEM_SELECTOR")).count())
 
-        let el = row;
-        while (el && el !== document.documentElement) {
-            const style = window.getComputedStyle(el);
-            const canScroll =
-            (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-            el.scrollHeight > el.clientHeight;
+            candidate = await page.evaluate("""
+            () => {
+            const row = document.querySelector('*[id^="profilePagedListComponent"]');
+            if (!row) return null;
+    
+            let el = row;
+            while (el && el !== document.documentElement) {
+                const style = window.getComputedStyle(el);
+                const canScroll =
+                (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+                el.scrollHeight > el.clientHeight;
+    
+                if (canScroll) return el.className || el.id || '<<anonymous>>';
+                el = el.parentElement;
+            }
+            return 'document';
+            }
+            """)
+            print("⇢ Scroll container Playwright found →", candidate)
 
-            if (canScroll) return el.className || el.id || '<<anonymous>>';
-            el = el.parentElement;
-        }
-        return 'document';
-        }
-        """)
-        print("⇢ Scroll container Playwright found →", candidate)
-
-        await scroll(page)
-        await page.close()
+            await scroll(page)
+            await page.close()
 
 async def scroll(ctx):
     stalled, seen = 0, -1
@@ -98,25 +99,30 @@ async def scroll(ctx):
 
             match = re.search(r"/in/([^/]+)/details", os.getenv("URL"))
             handle = match.group(1)
-            current_date = datetime.now().strftime("%Y-%m-%d")
+
+            new_connections = 0
+            for company in names[::2]:
+                result = await ConnectionService.add_connection(handle, company)
+                if result:
+                    new_connections += 1
             
-            # Write to CSV
-            csv_filename = "results.csv"
-            file_exists = os.path.exists(csv_filename)
-            
-            with open(csv_filename, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                
-                # Write header if file doesn't exist
-                if not file_exists:
-                    writer.writerow(["handle", "company", "date"])
-                
-                # Write new companies (every other item in names)
-                for company in names[::2]:
-                    writer.writerow([handle, company, current_date])
-            
-            print(f"⇢ rows collected: {len(names[::2])}")
+            print(f"⇢ rows collected: {len(names[::2])}, new connections: {new_connections}")
 
     return names
+
+async def get_urls() -> list:
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name('backend/auth/gcp_service_account.json', scope)
+    client = gspread.authorize(creds)
+
+    sheet = client.open("LinkedIn Investor Tracker").sheet1  # First sheet
+    handles = sheet.get_all_values()
+    urls = []
+
+    for handle in handles:
+        url = "https://www.linkedin.com/in/" + handle + "/details/interests/?detailScreenTabIndex=1"
+        urls.append(url)
+
+    return urls
 
 # asyncio.run(scrape())

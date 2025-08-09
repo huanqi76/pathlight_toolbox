@@ -52,34 +52,23 @@ class ConnectionService:
             return result.scalars().all()
 
     @staticmethod
-    async def migrate_from_csv(csv_filename: str = "results.csv"):
-        """Migrate existing CSV data to PostgreSQL"""
+    async def migrate_from_csv(csv_filename: str = "./backend/results.csv"):
+        """Migrate existing CSV data to PostgreSQL - bulk insert without duplicate checking"""
         if not os.path.exists(csv_filename):
             return 0
             
-        migrated_count = 0
+        connections_to_add = []
         async with async_session() as session:
             with open(csv_filename, "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # Check if connection already exists
-                    existing = await session.execute(
-                        select(Connection).where(
-                            and_(
-                                Connection.handle == row["handle"],
-                                Connection.company == row["company"]
-                            )
-                        )
+                    connection = Connection(
+                        handle=row["handle"],
+                        company=row["company"],
+                        date_scraped=datetime.strptime(row["date"], "%Y-%m-%d")
                     )
-                    
-                    if existing.scalar_one_or_none() is None:
-                        connection = Connection(
-                            handle=row["handle"],
-                            company=row["company"],
-                            date_scraped=datetime.strptime(row["date"], "%Y-%m-%d")
-                        )
-                        session.add(connection)
-                        migrated_count += 1
+                    connections_to_add.append(connection)
                         
+            session.add_all(connections_to_add)
             await session.commit()
-        return migrated_count
+        return len(connections_to_add)

@@ -13,7 +13,7 @@ from backend import *
 from frontend import *
 from backend.run import scrape
 from backend.database import init_db
-from backend.models import ConnectionService
+from backend.connection_service import ConnectionService
 
 from dotenv import load_dotenv
 load_dotenv()

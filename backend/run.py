@@ -6,7 +6,7 @@ from pandas.io.common import get_handle
 from playwright.async_api import async_playwright
 
 from dotenv import load_dotenv
-from backend.models import ConnectionService
+from backend.connection_service import ConnectionService
 
 load_dotenv()
 
